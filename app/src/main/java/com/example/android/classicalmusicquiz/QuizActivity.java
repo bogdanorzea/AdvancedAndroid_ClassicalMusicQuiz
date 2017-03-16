@@ -192,7 +192,7 @@ public class QuizActivity extends AppCompatActivity implements View.OnClickListe
 
 
     /**
-     * Shows Media Style notification, with an action that depends on the current MediaSession
+     * Shows Media Style notification, with actions that depend on the current MediaSession
      * PlaybackState.
      * @param state The PlaybackState of the MediaSession.
      */
@@ -429,10 +429,12 @@ public class QuizActivity extends AppCompatActivity implements View.OnClickListe
         }
     }
 
-    public static class NotificationActionReceiver extends BroadcastReceiver {
+    /**
+     * Broadcast Receiver registered to receive the MEDIA_BUTTON intent coming from clients.
+     */
+    public static class MediaReceiver extends BroadcastReceiver {
 
-        public NotificationActionReceiver() {
-
+        public MediaReceiver() {
         }
 
         @Override
