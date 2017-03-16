@@ -27,14 +27,17 @@ import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
 import android.widget.Button;
+import android.widget.Toast;
 
 import com.google.android.exoplayer2.DefaultLoadControl;
 import com.google.android.exoplayer2.ExoPlayerFactory;
+import com.google.android.exoplayer2.LoadControl;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.extractor.DefaultExtractorsFactory;
 import com.google.android.exoplayer2.source.ExtractorMediaSource;
 import com.google.android.exoplayer2.source.MediaSource;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
+import com.google.android.exoplayer2.trackselection.TrackSelector;
 import com.google.android.exoplayer2.ui.SimpleExoPlayerView;
 import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
 import com.google.android.exoplayer2.util.Util;
@@ -52,8 +55,8 @@ public class QuizActivity extends AppCompatActivity implements View.OnClickListe
     private int mCurrentScore;
     private int mHighScore;
     private Button[] mButtons;
-    private SimpleExoPlayerView mSimpleExoPlayerView;
-    private SimpleExoPlayer mSimpleExoPlayer;
+    private SimpleExoPlayer mExoPlayer;
+    private SimpleExoPlayerView mPlayerView;
 
 
     @Override
@@ -61,7 +64,9 @@ public class QuizActivity extends AppCompatActivity implements View.OnClickListe
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_quiz);
 
-        mSimpleExoPlayerView = (SimpleExoPlayerView) findViewById(R.id.exo_player_view);
+
+        // Initialize the player view.
+        mPlayerView = (SimpleExoPlayerView) findViewById(R.id.playerView);
 
         boolean isNewGame = !getIntent().hasExtra(REMAINING_SONGS_KEY);
 
@@ -82,9 +87,9 @@ public class QuizActivity extends AppCompatActivity implements View.OnClickListe
         mQuestionSampleIDs = QuizUtils.generateQuestion(mRemainingSampleIDs);
         mAnswerSampleID = QuizUtils.getCorrectAnswerID(mQuestionSampleIDs);
 
-        // Load the image of the composer for the answer into the ImageView.
-        mSimpleExoPlayerView.setDefaultArtwork(
-                BitmapFactory.decodeResource(getResources(), R.drawable.question_mark));
+        // Load the question mark as the background image until the user answers the question.
+        mPlayerView.setDefaultArtwork(BitmapFactory.decodeResource
+                (getResources(), R.drawable.question_mark));
 
         // If there is only one answer left, end the game.
         if (mQuestionSampleIDs.size() < 2) {
@@ -94,30 +99,16 @@ public class QuizActivity extends AppCompatActivity implements View.OnClickListe
 
         // Initialize the buttons with the composers names.
         mButtons = initializeButtons(mQuestionSampleIDs);
-
-        Sample sample = Sample.getSampleByID(this, mAnswerSampleID);
-
-        initializePlayer(Uri.parse(sample.getUri()));
-
-    }
-
-    private void initializePlayer(Uri uri) {
-        if (mSimpleExoPlayer == null) {
-            mSimpleExoPlayer = ExoPlayerFactory.newSimpleInstance(this,
-                    new DefaultTrackSelector(),
-                    new DefaultLoadControl());
-            mSimpleExoPlayerView.setPlayer(mSimpleExoPlayer);
-
-            String userAgent = Util.getUserAgent(this, "ClassicalMusicQuiz");
-            MediaSource mediaSource = new ExtractorMediaSource(uri,
-                    new DefaultDataSourceFactory(this, userAgent),
-                    new DefaultExtractorsFactory(),
-                    null,
-                    null);
-
-            mSimpleExoPlayer.prepare(mediaSource);
-            mSimpleExoPlayer.setPlayWhenReady(true);
+        
+        Sample answerSample = Sample.getSampleByID(this, mAnswerSampleID);
+        if (answerSample == null) {
+            Toast.makeText(this, getString(R.string.sample_not_found_error),
+                    Toast.LENGTH_SHORT).show();
+            return;
         }
+
+        // Initialize the player.
+        initializePlayer(Uri.parse(answerSample.getUri()));
     }
 
 
@@ -140,6 +131,37 @@ public class QuizActivity extends AppCompatActivity implements View.OnClickListe
             }
         }
         return buttons;
+    }
+
+
+    /**
+     * Initialize ExoPlayer.
+     * @param mediaUri The URI of the sample to play.
+     */
+    private void initializePlayer(Uri mediaUri) {
+        if (mExoPlayer == null) {
+            // Create an instance of the ExoPlayer.
+            TrackSelector trackSelector = new DefaultTrackSelector();
+            LoadControl loadControl = new DefaultLoadControl();
+            mExoPlayer = ExoPlayerFactory.newSimpleInstance(this, trackSelector, loadControl);
+            mPlayerView.setPlayer(mExoPlayer);
+            // Prepare the MediaSource.
+            String userAgent = Util.getUserAgent(this, "ClassicalMusicQuiz");
+            MediaSource mediaSource = new ExtractorMediaSource(mediaUri, new DefaultDataSourceFactory(
+                    this, userAgent), new DefaultExtractorsFactory(), null, null);
+            mExoPlayer.prepare(mediaSource);
+            mExoPlayer.setPlayWhenReady(true);
+        }
+    }
+
+
+    /**
+     * Release ExoPlayer.
+     */
+    private void releasePlayer() {
+        mExoPlayer.stop();
+        mExoPlayer.release();
+        mExoPlayer = null;
     }
 
 
@@ -188,46 +210,47 @@ public class QuizActivity extends AppCompatActivity implements View.OnClickListe
         handler.postDelayed(new Runnable() {
             @Override
             public void run() {
-                mSimpleExoPlayer.stop();
+                mExoPlayer.stop();
                 Intent nextQuestionIntent = new Intent(QuizActivity.this, QuizActivity.class);
                 nextQuestionIntent.putExtra(REMAINING_SONGS_KEY, mRemainingSampleIDs);
                 finish();
                 startActivity(nextQuestionIntent);
             }
         }, CORRECT_ANSWER_DELAY_MILLIS);
-
     }
 
     /**
-     * Disables the buttons and changes the background colors to show the correct answer.
+     * Disables the buttons and changes the background colors and player art to
+     * show the correct answer.
      */
     private void showCorrectAnswer() {
-        mSimpleExoPlayerView.setDefaultArtwork(
-                Sample.getComposerArtBySampleID(this, mAnswerSampleID));
+        mPlayerView.setDefaultArtwork(Sample.getComposerArtBySampleID(this, mAnswerSampleID));
         for (int i = 0; i < mQuestionSampleIDs.size(); i++) {
             int buttonSampleID = mQuestionSampleIDs.get(i);
 
             mButtons[i].setEnabled(false);
+
             if (buttonSampleID == mAnswerSampleID) {
                 mButtons[i].getBackground().setColorFilter(ContextCompat.getColor
                                 (this, android.R.color.holo_green_light),
                         PorterDuff.Mode.MULTIPLY);
                 mButtons[i].setTextColor(Color.WHITE);
-
             } else {
                 mButtons[i].getBackground().setColorFilter(ContextCompat.getColor
                                 (this, android.R.color.holo_red_light),
                         PorterDuff.Mode.MULTIPLY);
                 mButtons[i].setTextColor(Color.WHITE);
-
             }
         }
     }
 
+
+    /**
+     * Release the player when the activity is destroyed.
+     */
     @Override
     protected void onDestroy() {
-        mSimpleExoPlayer.stop();
-        mSimpleExoPlayer.release();
         super.onDestroy();
+        releasePlayer();
     }
 }
