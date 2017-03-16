@@ -50,9 +50,7 @@ import com.google.android.exoplayer2.util.Util;
 
 import java.util.ArrayList;
 
-public class QuizActivity extends AppCompatActivity implements
-        View.OnClickListener,
-        ExoPlayer.EventListener {
+public class QuizActivity extends AppCompatActivity implements View.OnClickListener, ExoPlayer.EventListener {
 
     private static final int CORRECT_ANSWER_DELAY_MILLIS = 1000;
     private static final String REMAINING_SONGS_KEY = "remaining_songs";
@@ -157,6 +155,7 @@ public class QuizActivity extends AppCompatActivity implements
             mExoPlayer = ExoPlayerFactory.newSimpleInstance(this, trackSelector, loadControl);
             mPlayerView.setPlayer(mExoPlayer);
 
+            // Set the ExoPlayer.EventListener to this activity.
             mExoPlayer.addListener(this);
             
             // Prepare the MediaSource.
@@ -268,38 +267,35 @@ public class QuizActivity extends AppCompatActivity implements
         releasePlayer();
     }
 
+
+    // ExoPlayer Event Listeners
+
     @Override
     public void onTimelineChanged(Timeline timeline, Object manifest) {
-
     }
 
     @Override
     public void onTracksChanged(TrackGroupArray trackGroups, TrackSelectionArray trackSelections) {
-
     }
 
     @Override
     public void onLoadingChanged(boolean isLoading) {
-
     }
 
     @Override
     public void onPlayerStateChanged(boolean playWhenReady, int playbackState) {
-        if ((playbackState == ExoPlayer.STATE_READY)){
-            if (playWhenReady)
-                Log.i(TAG, "Playing...");
-            else
-                Log.i(TAG, "Paused");
+        if((playbackState == ExoPlayer.STATE_READY) && playWhenReady){
+            Log.d(TAG, "onPlayerStateChanged: PLAYING");
+        } else if((playbackState == ExoPlayer.STATE_READY)){
+            Log.d(TAG, "onPlayerStateChanged: PAUSED");
         }
     }
 
     @Override
     public void onPlayerError(ExoPlaybackException error) {
-
     }
 
     @Override
     public void onPositionDiscontinuity() {
-
     }
 }
